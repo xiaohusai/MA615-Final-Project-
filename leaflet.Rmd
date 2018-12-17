@@ -1,0 +1,268 @@
+---
+title: "Analysis for Top Soccer Player's Wage"
+author: 615 Final Project for Samuel Luo
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, fig.width = 6, fig.height = 4)
+```
+
+#Background 
+
+###In the current world, many famous soccer players are fully appreciated by soccer clubs and fans. Since they are in top-level clubs, they are paid an attractive salary that many people dream of it. If we take their nationalities into account, which countries' players would make more money compared to other? Although we know that a player's wage highly depends on their abilities and which club does he join, for the top players who their abilities are nearly the same, is there a relationship between their nationalities and their wages? What about their height and weight? This report is going to reveal to what extent and how does height, weight and nationality affect top soccer player's wages and how is the accuracy of their wages in this data?
+
+#Data introduce
+
+###The data source I used is originally scraped from sofifa.com, which is now under the folder 'Fifa18 more complete player dataset' in Kaggle.com. 
+
+#Data import
+
+###This file includes nearly all soccer players in the current world, including many famous soccer stars such as C.Ronaldo and L.Messi. First, I selected the potential variables that might be useful for later's analysis. Then, since the subjects I am focusing on are the top soccer players, I removed the players whose official evaluations are under 70/100. 
+```{r}
+library(tidyverse)
+library(dplyr)
+
+fifa1data = read.csv(file = "complete.csv")
+fifa1data <- dplyr::select(fifa1data, name, overall, club, age, league, height_cm, weight_kg, nationality, eur_wage)
+colnames(fifa1data) <- c("name", "evaluation", "club", "age", "league", "height","weight", "nationality", "wage")
+fifa1data = fifa1data[-which(fifa1data$wage == 0),]
+fifa1data = fifa1data[-which(fifa1data$evaluation < 70),]
+
+```
+
+#Brief observation
+
+###Before fitting a model, I am willing to have a basic understanding of the average weight, height and average wage for top players from different countries. First, I counted the countries in this dataset, I found that the number of some countries' soccer players is very small. In order to improve the accuracy of analysis, I removed the rows contain the countries that the number of such countries' soccer players is less than 10. 
+```{r}
+countrycount <- fifa1data %>%
+  group_by(nationality) %>%
+  count()
+countrycount
+
+fifa1data <- fifa1data %>%
+  group_by(nationality) %>% 
+  mutate(count = n()) %>%
+  filter(count>10)
+  
+```
+
+###After that, I calculated the average weight, height and average wage of top soccer players from different countries. And then I would put these results into leaflet which can help the audience clearly see the average weight, height and wage in different countries.
+```{r}
+weightcountry <- fifa1data %>%
+  group_by(nationality) %>%
+  summarise(avg.weight = mean(weight))
+weightcountry
+
+heightcountry <- fifa1data %>%
+  group_by(nationality) %>%
+  summarise(avg.height = mean(height))
+heightcountry
+
+bodycountry <- cbind(weightcountry,heightcountry)
+colnames(bodycountry) <- c("nationality", "avg.weight", "nationality2", "avg.height")
+bodycountry <- dplyr::select(bodycountry, nationality, avg.weight, avg.height)
+
+wagecountry <- fifa1data %>%
+  group_by(nationality) %>%
+  summarise(avg.wage = mean(wage))
+wagecountry
+```
+
+
+```{r}
+library(leaflet)
+library(rgdal)
+library(tidyverse)
+
+#Import Map Data
+url <- "https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/50m/cultural/ne_50m_admin_0_countries.zip"
+
+tmp <- tempdir()
+file <- basename(url)
+download.file(url, file)
+unzip(file, exdir = tmp)
+
+#Merge Data
+countries <- readOGR(dsn=tmp,
+                     layer = "ne_50m_admin_0_countries", 
+                     encoding = "UTF-8", verbose=FALSE)
+country_name<-intersect(countries$SUBUNIT,wagecountry$nationality)
+fifa2018 <-sp::merge(countries, wagecountry %>% filter(nationality%in%country_name),
+                  by.y="nationality",by.x="SUBUNIT",sort=FALSE,duplicateGeoms =
+                  TRUE,all.x=FALSE)
+
+#map1
+pal <- colorNumeric("YlOrRd", domain = fifa2018$avg.wage)
+labels<- sprintf(
+  "<strong>%s</strong><br/>%s EURO",
+  fifa2018$SUBUNIT, round(fifa2018$avg.wage,2)
+) %>% lapply(htmltools::HTML)
+
+map1 <- leaflet() %>%
+  addTiles() %>%
+  addPolygons(data=fifa2018,
+  fillColor = ~pal(fifa2018$avg.wage),
+  weight = 4,opacity = 0.4, color = "darksalmon",
+  dashArray = "1",fillOpacity = 0.4,
+  
+   highlight = highlightOptions(
+    weight = 5,color = "#e9967a",
+    dashArray = "",fillOpacity = 0.7,bringToFront = TRUE),
+  
+  label = labels)%>%
+  
+    addLegend(pal = pal, values = fifa2018$avg.wage, opacity = 0.4, title = "Average Wage", labFormat = labelFormat(prefix = "EURO "), position = "bottomleft")
+
+#map23 formulate
+country_name2<-intersect(countries$SUBUNIT,bodycountry$nationality)
+fifa2018_2 <-sp::merge(countries, bodycountry %>% filter(nationality%in%country_name2),
+                  by.y="nationality",by.x="SUBUNIT",sort=FALSE,duplicateGeoms =
+                  TRUE,all.x=FALSE)
+
+
+#map2
+pal2 <- colorNumeric("YlOrRd", domain = fifa2018_2$avg.weight)
+labels2<- sprintf(
+  "<strong>%s</strong><br/>%s Kilogram",
+  fifa2018_2$SUBUNIT, round(fifa2018_2$avg.weight,2)
+) %>% lapply(htmltools::HTML)
+
+map2 <- leaflet() %>%
+  addTiles() %>%
+  addPolygons(data=fifa2018_2,
+  fillColor = ~pal2(fifa2018_2$avg.weight),
+  weight = 4, opacity = 0.4, color = "darksalmon",
+  dashArray = "1", fillOpacity = 0.4,
+  
+   highlight = highlightOptions(
+    weight = 5, color = "#e9967a",
+    dashArray = "", fillOpacity = 0.7, bringToFront = TRUE),
+  
+  label = labels2)%>%
+  
+    addLegend(pal2, values = fifa2018_2$avg.weight, opacity = 0.4, title = "Average Weight", labFormat = labelFormat(prefix = "Kilograms "), position = "bottomleft")
+
+#map2
+pal3 <- colorNumeric("YlOrRd", domain = fifa2018_2$avg.height)
+labels3<- sprintf(
+  "<strong>%s</strong><br/>%s centimeter",
+  fifa2018_2$SUBUNIT, round(fifa2018_2$avg.height,2)
+) %>% lapply(htmltools::HTML)
+
+map3 <- leaflet() %>%
+  addTiles() %>%
+  addPolygons(data=fifa2018_2,
+  fillColor = ~pal3(fifa2018_2$avg.height),
+  weight = 4, opacity = 0.4, color = "darksalmon",
+  dashArray = "1", fillOpacity = 0.4,
+   highlight = highlightOptions(
+    weight = 5, color = "#e9967a",
+    dashArray = "", fillOpacity = 0.7, bringToFront = TRUE),
+  
+  label = labels3)%>%
+  
+    addLegend(pal3, values = fifa2018_2$avg.height, opacity = 0.4, title = "Average Height", labFormat = labelFormat(prefix = "Centimeters "), position = "bottomleft")
+
+map1
+map2
+map3
+```
+
+###I thought that the taller a player is, the higher wage he will get. But from the maps we can clearly figure out that at least for some countries, it is the opposite.
+
+#EDA
+
+```{r}
+ggplot(data = fifa1data, aes(x = height))+
+geom_bar(color = "darksalmon") + ggtitle("Distribution of Player's height")
+
+ggplot(data = fifa1data, aes(x = weight))+
+geom_bar(color = "darksalmon") + ggtitle("Distribution of Player's weight")
+
+ggplot(data = fifa1data, aes(x = wage))+
+geom_bar(color = "darksalmon") + ggtitle("Distribution of Player's wage")
+
+```
+
+###From the distributions of players' weight and height, which seems like normal distributions, we can see most of the players are around 180 cm height and 75 kg weight. But for the distribution of players' wage,  as the amount of wage increases, the number of players who can get this amount decreases rapidly.
+
+###Right now, let me plot the relationships between wage and some potential factors.
+```{r}
+ggplot(fifa1data, aes(x = nationality, y= log(wage))) + geom_smooth() + geom_point(color="darksalmon")  + ggtitle("Relationship between nationality and wage")
+
+ggplot(fifa1data, aes(x = height, y= log(wage))) + geom_smooth() + geom_point(color="darksalmon")  + ggtitle("Relationship between height and wage")
+
+ggplot(fifa1data, aes(x = weight, y= log(wage))) + geom_smooth() + geom_point(color="darksalmon")  + ggtitle("Relationship between weight and wage")
+              
+```
+
+###We can see that players from some countries make more money compared to others. For the relationship between height and wage, I thought that players tend to gain more money if they are taller, but the fact is that height does not have any influence on their wages. By looking at the relationship between weight and wage, what is interesting is that although the influence of players' weight is really tiny, there is still a small tendency that the more weight results in the more wage they get. 
+
+#Model formulating and Interpretation
+
+```{r}
+library(arm)
+relationshipmodel <- lm(data = fifa1data, log(wage) ~ nationality + weight)
+summary(relationshipmodel)
+
+anova(relationshipmodel)
+```
+
+###From the summary, we can clearly find that for a players' weight increases by 1 unit, his wage would increase by 0.003544, which is expected by comparing it with the former EDA. Compare to weight, nationality has more impact on soccer players' wage. 
+
+###Since different nationalities would have different impacts on players' wage, I am going to use the method K-means clustering to make these nationalities' coefficients into several clusters.  
+```{r}
+nationalcoef <- relationshipmodel$coefficients[2:62]
+
+set.seed(1)
+nationalkmean <- kmeans(nationalcoef, 4, nstart = 25)
+nationalkmean
+```
+
+###By using this K-means clustering method, nationalities' coefficients are divided into four clusters, which means of coefficients are 0.41805 (cluster#1),0.76852 (cluster#2), 0.00025 (cluster#3), -0.69076 (cluster#4).
+
+
+```{r}
+library(plotly)
+nationalname = names(relationshipmodel$coefficients)[2:62]
+nationalcluster <- as.data.frame(nationalkmean$cluster)
+nationalcluster <- cbind(nationalname, nationalcluster,nationalcoef)
+colnames(nationalcluster) <- c("nationality","clusternumber","coefficient")
+nationalcluster
+
+a <- ggplot(data= nationalcluster, aes(x=clusternumber, y=coefficient, color=clusternumber, fill= nationality))+ geom_jitter() + theme(legend.position="none")
+ggplotly(a)
+```
+
+###After transferring the data of cluster number into a data frame and a plot, it is easy for us to find that the top soccer players whose nationalities in cluster#2 have more chance to get more wages, such as Germany, Croatia, Egypt, England and so on. Also, the top soccer players whose nationalities in cluster#4 might get relatively fewer wages, such as Chile, Colombia and so on. 
+
+#Benford Law Test
+
+###Now, one question comes to us. Is this dataset reliable for our analysis?
+```{r}
+library(benford.analysis)
+bf_wage <- benford(fifa1data$wage)
+
+plot(bf_wage)
+
+a <- as.character(fifa1data$height)
+heightnumber <- as.numeric(substr(a, 3,3))
+bf_height <- benford(heightnumber)
+
+plot(bf_height)
+
+b <- as.character(fifa1data$weight)
+weightnumber <- as.numeric(substr(b,2,2))
+bf_weight <- benford(weightnumber)
+
+plot(bf_weight)
+```
+
+###According to the digit distribution of soccer players' wage, the data somehow have a tendency to follow Benford's law, but discrepancies are also clear at around 30,40,50,60,70 and 80. In additon, for the Benford Analysis Plot of height and weight, we can clearly find that height And weight does not follow the tendency of Benford Law. 
+
+#Conclusion and Future
+
+###In short, a player's height and weight do not have any obvious effect on their wage. Players from some countries would have a higher wage, maybe because their countries pay more attention to the development of sports so that they were better trained and had better physical qualities. Furthermore, the Benford Analysis shows that the data might not authentic enough. In the future, to do a more solid analysis for top soccer players' wage, additional variables and methods are needed. 

@@ -1,0 +1,13 @@
+name: AnalysisSoccerWage
+title: AnalysisSoccerWage
+username:
+account: xiaohusai
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 619053
+bundleId: 1769282
+url: https://xiaohusai.shinyapps.io/AnalysisSoccerWage/
+when: 1545081986.16724
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|leaflet.html|leaflet.Rmd|ne_50m_admin_0_countries.zip
