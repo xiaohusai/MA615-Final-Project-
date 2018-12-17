@@ -224,7 +224,6 @@ nationalkmean
 
 ###By using this K-means clustering method, nationalities' coefficients are divided into four clusters, which means of coefficients are 0.41805 (cluster#1),0.76852 (cluster#2), 0.00025 (cluster#3), -0.69076 (cluster#4).
 
-
 ```{r}
 library(plotly)
 nationalname = names(relationshipmodel$coefficients)[2:62]
